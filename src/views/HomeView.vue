@@ -3,7 +3,12 @@ import FileUploader from '@/components/public/FileUploader.vue'
 import { ref } from 'vue'
 import { Upload } from 'lucide-vue-next'
 
-const uploadInfo = ref<{ url: string; thumbnailUrl?: string } | null>(null)
+const uploadInfo = ref<{
+  url: string
+  thumbnailUrl?: string
+  urlOriginal?: string
+  thumbnailOriginalUrl?: string
+} | null>(null)
 </script>
 
 <template>
@@ -54,7 +59,7 @@ const uploadInfo = ref<{ url: string; thumbnailUrl?: string } | null>(null)
           <div class="space-y-3 p-6">
             <div class="group">
               <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
-                原图链接
+                代理原图链接
               </p>
               <a
                 :href="uploadInfo.url"
@@ -66,7 +71,7 @@ const uploadInfo = ref<{ url: string; thumbnailUrl?: string } | null>(null)
             </div>
             <div v-if="uploadInfo.thumbnailUrl" class="group">
               <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
-                缩略图链接
+                代理缩略图链接
               </p>
               <a
                 :href="uploadInfo.thumbnailUrl"
@@ -74,6 +79,30 @@ const uploadInfo = ref<{ url: string; thumbnailUrl?: string } | null>(null)
                 class="block truncate text-sm text-purple-600 transition hover:text-purple-700"
               >
                 {{ uploadInfo.thumbnailUrl }}
+              </a>
+            </div>
+            <div class="group">
+              <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
+                CNB原图链接
+              </p>
+              <a
+                :href="uploadInfo.urlOriginal"
+                target="_blank"
+                class="block truncate text-sm text-blue-600 transition hover:text-blue-700"
+              >
+                {{ uploadInfo.urlOriginal }}
+              </a>
+            </div>
+            <div v-if="uploadInfo.thumbnailUrl" class="group">
+              <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
+                CNB缩略图链接
+              </p>
+              <a
+                :href="uploadInfo.thumbnailOriginalUrl"
+                target="_blank"
+                class="block truncate text-sm text-purple-600 transition hover:text-purple-700"
+              >
+                {{ uploadInfo.thumbnailOriginalUrl }}
               </a>
             </div>
           </div>

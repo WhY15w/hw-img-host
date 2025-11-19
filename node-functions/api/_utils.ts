@@ -1,3 +1,11 @@
+/**
+ * 上传文件到 CNB 对象存储
+ * @param {object} param0 - 上传参数
+ * @param {Buffer} param0.fileBuffer - 文件的 Buffer
+ * @param {string} param0.fileName - 文件名
+ * @param {string} [param0.type='imgs'] - 上传类型，默认为 'imgs'
+ * @returns 上传结果包含资源信息和URL
+ */
 async function uploadToCnb({ fileBuffer, fileName, type = 'imgs' }) {
   const fileSize = fileBuffer.length
   const metaUrl = `https://api.cnb.cool/${process.env.SLUG_IMG}/-/upload/${type}`

@@ -34,13 +34,13 @@ app.post(
   ]),
   async (req, res) => {
     try {
-      console.log('Received upload request:', req.files)
-      if (!req.files || !req.files.file) {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] }
+      if (!files || !files.file) {
         return res.status(400).json(reply(1, '未上传文件', ''))
       }
 
-      const mainFile = req.files.file[0]
-      const thumbnailFile = req.files.thumbnail?.[0]
+      const mainFile = files.file?.[0]
+      const thumbnailFile = files.thumbnail?.[0]
 
       // 上传主图
       const mainResult = await uploadToCnb({

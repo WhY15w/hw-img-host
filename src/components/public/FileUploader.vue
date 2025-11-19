@@ -128,7 +128,9 @@ interface Props {
 
 interface UploadInfo {
   url: string
-  thumbnailUrl: string
+  urlOriginal?: string
+  thumbnailUrl?: string
+  thumbnailOriginalUrl?: string
   name: string
   size: number
   type: string
@@ -161,6 +163,12 @@ interface UploadResponse {
   data: {
     url: string
     thumbnailUrl?: string
+    assets?: {
+      path: string
+    }
+    thumbnailAssets?: {
+      path: string
+    }
   }
 }
 
@@ -429,7 +437,9 @@ async function uploadFile(): Promise<void> {
 
     const uploadInfo: UploadInfo = {
       url: uploadedUrl.value,
+      urlOriginal: 'https://cnb.cool' + data.data?.assets?.path,
       thumbnailUrl: uploadedThumbnailUrl.value,
+      thumbnailOriginalUrl: 'https://cnb.cool' + data.data?.thumbnailAssets?.path,
       name: file.value.name,
       size: file.value.size,
       type: file.value.type,

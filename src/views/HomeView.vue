@@ -12,7 +12,7 @@ const uploadInfo = ref<{
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+  <div class="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50">
     <div class="flex min-h-[calc(100vh-4px)] flex-col items-center justify-center px-4 py-12">
       <div class="mb-4 text-center">
         <div class="mb-4 flex items-center justify-center gap-3">
@@ -49,7 +49,7 @@ const uploadInfo = ref<{
           class="mt-8 w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 bg-white/80 shadow-sm backdrop-blur-sm"
         >
           <div
-            class="border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4"
+            class="border-b border-gray-100 bg-linear-to-r from-green-50 to-emerald-50 px-6 py-4"
           >
             <div class="flex items-center gap-2">
               <div class="h-2 w-2 animate-pulse rounded-full bg-green-500"></div>

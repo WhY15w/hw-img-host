@@ -10,32 +10,43 @@ async function uploadToCnb({ fileBuffer, fileName, type = 'imgs' }) {
   const fileSize = fileBuffer.length
   const metaUrl = `https://api.cnb.cool/${process.env.SLUG_IMG}/-/upload/${type}`
 
-  const metaResp = await fetch(metaUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.TOKEN_IMG}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ name: fileName, size: fileSize }),
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s 超时
 
-  if (!metaResp.ok) {
-    throw new Error('Failed to get upload metadata')
+  try {
+    const metaResp = await fetch(metaUrl, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${process.env.TOKEN_IMG}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: fileName, size: fileSize }),
+    })
+
+    if (!metaResp.ok) {
+      const errText = await metaResp.text().catch(() => '')
+      throw new Error(`获取上传元数据失败: ${metaResp.status} ${metaResp.statusText} ${errText}`)
+    }
+
+    const { assets, upload_url } = await metaResp.json()
+
+    const uploadResp = await fetch(upload_url, {
+      method: 'PUT',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: fileBuffer,
+    })
+
+    if (!uploadResp.ok) {
+      const errText = await uploadResp.text().catch(() => '')
+      throw new Error(`上传到存储失败: ${uploadResp.status} ${uploadResp.statusText} ${errText}`)
+    }
+
+    return { assets, url: assets['path'] }
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  const { assets, upload_url } = await metaResp.json()
-
-  const uploadResp = await fetch(upload_url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: fileBuffer,
-  })
-
-  if (!uploadResp.ok) {
-    throw new Error('Failed to upload image')
-  }
-
-  return { assets, url: assets['path'] }
 }
 
 /**

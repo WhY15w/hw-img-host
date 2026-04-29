@@ -2,7 +2,12 @@ import express from 'express'
 import { uploadToCnb, createProxyHandler } from './_utils'
 import { reply } from './_reply'
 import multer from 'multer'
-const upload = multer()
+const upload = multer({
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 单文件最大 20MB
+    fieldSize: 20 * 1024 * 1024, // 表单字段最大 20MB
+  },
+})
 const app = express()
 
 const requestConfig = {
@@ -28,10 +33,18 @@ app.get('/img/*path', createProxyHandler(BASE_URL, requestConfig))
 
 app.post(
   '/upload/img',
-  upload.fields([
-    { name: 'file', maxCount: 1 },
-    { name: 'thumbnail', maxCount: 1 },
-  ]),
+  (req, res, next) => {
+    upload.fields([
+      { name: 'file', maxCount: 1 },
+      { name: 'thumbnail', maxCount: 1 },
+    ])(req, res, (err) => {
+      if (err) {
+        const status = err.code === 'LIMIT_FILE_SIZE' || err.code === 'LIMIT_FIELD_SIZE' ? 413 : 400
+        return res.status(status).json(reply(1, `文件超出限制: ${err.message}`, ''))
+      }
+      next()
+    })
+  },
   async (req, res) => {
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] }
@@ -51,7 +64,7 @@ app.post(
       const baseUrl = process.env.BASE_IMG_URL
 
       const mainImgPath = extractImagePath(mainResult.url)
-      const mainUrl = baseUrl + mainImgPath
+      const mainUrl = baseUrl + 'api/img/' + mainImgPath
 
       let thumbnailUrl = null
       let thumbnailAssets = null
@@ -64,7 +77,7 @@ app.post(
         })
 
         const thumbnailImgPath = extractImagePath(thumbnailResult.url)
-        thumbnailUrl = baseUrl + thumbnailImgPath
+        thumbnailUrl = baseUrl + 'api/img/' + thumbnailImgPath
         thumbnailAssets = thumbnailResult.assets
       }
 
@@ -77,9 +90,18 @@ app.post(
           hasThumbnail: !!thumbnailFile,
         }),
       )
-    } catch (err) {
-      console.error('上传失败:', err.response?.data || err.message)
-      res.status(500).json(reply(1, '上传失败', err.message))
+    } catch (err: unknown) {
+      const msg = (err as Error).message || '未知错误'
+      const detail = (err as { response?: { data?: unknown } }).response?.data
+        ? Buffer.from((err as { response?: { data?: unknown } }).response.data).toString('utf8')
+        : ''
+      console.error('上传失败:', msg, detail)
+      res.status(500).json(
+        reply(1, '上传失败', {
+          message: msg,
+          detail: detail || undefined,
+        }),
+      )
     }
   },
 )

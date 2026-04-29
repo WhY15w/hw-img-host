@@ -216,7 +216,28 @@ async function compressImageToWebp(
     reader.onload = (e: ProgressEvent<FileReader>) => {
       const img = new Image()
       img.src = e.target?.result as string
-      img.onload = () => {
+      img.onload = async () => {
+        let width = img.width
+        let height = img.height
+
+        if (maxWidth > 0 || maxHeight > 0) {
+          if (maxWidth > 0 && maxHeight > 0) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height)
+            if (ratio < 1) {
+              width = Math.round(width * ratio)
+              height = Math.round(height * ratio)
+            }
+          } else if (maxWidth > 0 && width > maxWidth) {
+            const ratio = maxWidth / width
+            width = maxWidth
+            height = Math.round(height * ratio)
+          } else if (maxHeight > 0 && height > maxHeight) {
+            const ratio = maxHeight / height
+            height = maxHeight
+            width = Math.round(width * ratio)
+          }
+        }
+
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')
 
@@ -225,51 +246,52 @@ async function compressImageToWebp(
           return
         }
 
-        let width = img.width
-        let height = img.height
-
-        if (maxWidth > 0 || maxHeight > 0) {
-          if (maxWidth > 0 && maxHeight > 0) {
-            // 同时限制宽高
-            const ratio = Math.min(maxWidth / width, maxHeight / height)
-            if (ratio < 1) {
-              width = Math.round(width * ratio)
-              height = Math.round(height * ratio)
-            }
-          } else if (maxWidth > 0 && width > maxWidth) {
-            // 仅限制宽度
-            const ratio = maxWidth / width
-            width = maxWidth
-            height = Math.round(height * ratio)
-          } else if (maxHeight > 0 && height > maxHeight) {
-            // 仅限制高度
-            const ratio = maxHeight / height
-            height = maxHeight
-            width = Math.round(width * ratio)
-          }
-        }
-
         canvas.width = width
         canvas.height = height
         ctx.drawImage(img, 0, 0, width, height)
 
+        // 根据像素数自适应质量，确保 body 不超过 3MB
+        const pixelCount = width * height
+        let effectiveQuality = quality
+        if (pixelCount > 4_000_000) {
+          effectiveQuality = Math.min(quality, 0.6)
+        } else if (pixelCount > 2_000_000) {
+          effectiveQuality = Math.min(quality, 0.65)
+        }
+
         canvas.toBlob(
           (blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name.replace(/\.\w+$/, '.webp'), {
-                type: 'image/webp',
-              })
-              resolve({
-                compressedFile,
-                width,
-                height,
-              })
-            } else {
+            if (!blob) {
               reject(new Error('WebP 转换失败'))
+              return
             }
+            // 如果 body 超过 3MB 且还有降质空间，再降一档
+            if (blob.size > 3 * 1024 * 1024 && effectiveQuality > 0.3) {
+              canvas.toBlob(
+                (retryBlob) => {
+                  if (!retryBlob) {
+                    reject(new Error('WebP 转换失败'))
+                    return
+                  }
+                  const compressedFile = new File(
+                    [retryBlob],
+                    file.name.replace(/\.\w+$/, '.webp'),
+                    { type: 'image/webp' },
+                  )
+                  resolve({ compressedFile, width, height })
+                },
+                'image/webp',
+                0.3,
+              )
+              return
+            }
+            const compressedFile = new File([blob], file.name.replace(/\.\w+$/, '.webp'), {
+              type: 'image/webp',
+            })
+            resolve({ compressedFile, width, height })
           },
           'image/webp',
-          quality,
+          effectiveQuality,
         )
       }
       img.onerror = () => reject(new Error('图片加载失败'))
@@ -277,7 +299,6 @@ async function compressImageToWebp(
     reader.onerror = () => reject(new Error('文件读取失败'))
   })
 }
-
 async function generateThumbnailImage(file: File): Promise<ThumbnailResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -366,8 +387,8 @@ async function handleFile(f: File | null): Promise<void> {
   processing.value = true
 
   try {
-    if (f.size > 5 * 1024 * 1024) {
-      errorMsg.value = '图片大小不能超过 5MB'
+    if (f.size > 20 * 1024 * 1024) {
+      errorMsg.value = '图片大小不能超过 20MB'
       return
     }
     const { compressedFile, width, height } = await compressImageToWebp(
@@ -456,8 +477,16 @@ async function uploadFile(): Promise<void> {
     toast.success(data.msg || '上传成功')
   } catch (err) {
     console.error(err)
-    const error = err as { response?: { data?: { error?: string } }; message?: string }
-    errorMsg.value = error.response?.data?.error || error.message || '上传失败'
+    const error = err as {
+      response?: {
+        data?: { code?: number; msg?: string; data?: { message?: string; detail?: string } }
+      }
+      message?: string
+    }
+    const serverMsg = error.response?.data?.msg
+    const serverDetail = error.response?.data?.data?.detail
+    const serverInnerMsg = error.response?.data?.data?.message
+    errorMsg.value = serverMsg || serverInnerMsg || serverDetail || error.message || '上传失败'
     toast.error(errorMsg.value)
   } finally {
     uploading.value = false

@@ -6,7 +6,15 @@
  * @param {string} [param0.type='imgs'] - 上传类型，默认为 'imgs'
  * @returns 上传结果包含资源信息和URL
  */
-async function uploadToCnb({ fileBuffer, fileName, type = 'imgs' }) {
+async function uploadToCnb({
+  fileBuffer,
+  fileName,
+  type = 'imgs',
+}: {
+  fileBuffer: Buffer
+  fileName: string
+  type?: string
+}) {
   const fileSize = fileBuffer.length
   const metaUrl = `https://api.cnb.cool/${process.env.SLUG_IMG}/-/upload/${type}`
 
@@ -49,53 +57,4 @@ async function uploadToCnb({ fileBuffer, fileName, type = 'imgs' }) {
   }
 }
 
-/**
- * 创建代理处理函数
- * @param {string} baseUrl 基础URL
- * @param {object} requestConfig 请求配置
- * @returns 路由处理函数
- */
-function createProxyHandler(baseUrl, requestConfig) {
-  return async (req, res) => {
-    try {
-      const urlPath = Array.isArray(req.params.path) ? req.params.path.join('/') : req.params.path
-
-      if (!urlPath || urlPath.includes('..')) {
-        return res.status(400).json({ error: 'Invalid image path' })
-      }
-
-      const targetUrl = new URL(urlPath, baseUrl).toString()
-
-      const fetchOptions = {
-        method: 'GET',
-        headers: requestConfig?.headers || {},
-        signal: requestConfig?.timeout ? AbortSignal.timeout(requestConfig.timeout) : undefined,
-      }
-
-      const response = await fetch(targetUrl, fetchOptions)
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type') || 'image/png'
-        const arrayBuffer = await response.arrayBuffer()
-
-        res.setHeader('Content-Type', contentType)
-        res.send(Buffer.from(arrayBuffer))
-      } else {
-        res.status(response.status).json({
-          error: `Upstream error: ${response.statusText}`,
-        })
-      }
-    } catch (e) {
-      console.error(`❌ [Proxy Error] ${e.message}`)
-      if (e.name === 'TimeoutError' || e.name === 'AbortError') {
-        return res.status(504).json({ error: 'Upstream request timed out' })
-      }
-      if (e instanceof TypeError && e.message.includes('fetch')) {
-        return res.status(502).json({ error: 'Failed to fetch from upstream' })
-      }
-      return res.status(500).json({ error: 'Internal server error' })
-    }
-  }
-}
-
-export { uploadToCnb, createProxyHandler }
+export { uploadToCnb }

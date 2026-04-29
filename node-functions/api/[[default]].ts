@@ -1,5 +1,5 @@
 import express from 'express'
-import { uploadToCnb, createProxyHandler } from './_utils'
+import { uploadToCnb } from './_utils'
 import { reply } from './_reply'
 import multer from 'multer'
 const upload = multer({
@@ -10,26 +10,10 @@ const upload = multer({
 })
 const app = express()
 
-const requestConfig = {
-  responseType: 'arraybuffer',
-  timeout: 5000,
-  headers: {
-    Accept: 'image/*, */*',
-    'User-Agent': 'SeerImageProxy/1.0 (+https://seerinfo.yuyuqaq.cn)',
-  },
-}
-const BASE_URL = 'https://cnb.cool/' + process.env.SLUG_IMG + '/-/imgs/'
-
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`)
   next()
 })
-
-app.get('/', (req, res) => {
-  res.json({ message: 'Hello from Express on Node Functions!' })
-})
-
-app.get('/img/*path', createProxyHandler(BASE_URL, requestConfig))
 
 app.post(
   '/upload/img',
@@ -64,7 +48,7 @@ app.post(
       const baseUrl = process.env.BASE_IMG_URL
 
       const mainImgPath = extractImagePath(mainResult.url)
-      const mainUrl = baseUrl + 'api/img/' + mainImgPath
+      const mainUrl = baseUrl + 'img-api/' + mainImgPath
 
       let thumbnailUrl = null
       let thumbnailAssets = null
@@ -77,7 +61,7 @@ app.post(
         })
 
         const thumbnailImgPath = extractImagePath(thumbnailResult.url)
-        thumbnailUrl = baseUrl + 'api/img/' + thumbnailImgPath
+        thumbnailUrl = baseUrl + 'img-api/' + thumbnailImgPath
         thumbnailAssets = thumbnailResult.assets
       }
 
@@ -92,9 +76,15 @@ app.post(
       )
     } catch (err: unknown) {
       const msg = (err as Error).message || '未知错误'
-      const detail = (err as { response?: { data?: unknown } }).response?.data
-        ? Buffer.from((err as { response?: { data?: unknown } }).response.data).toString('utf8')
-        : ''
+      let detail = ''
+      const responseData = (err as { response?: { data?: unknown } }).response?.data
+      if (responseData && typeof responseData === 'string') {
+        detail = responseData
+      } else if (responseData && Buffer.isBuffer(responseData)) {
+        detail = responseData.toString('utf8')
+      } else if (responseData instanceof ArrayBuffer) {
+        detail = Buffer.from(responseData).toString('utf8')
+      }
       console.error('上传失败:', msg, detail)
       res.status(500).json(
         reply(1, '上传失败', {
@@ -111,7 +101,7 @@ app.post(
  * @param {string} url - 完整的 URL
  * @returns {string} - 提取的图片路径
  */
-function extractImagePath(url) {
+function extractImagePath(url: string): string {
   if (url.includes('-/imgs/')) {
     return url.split('-/imgs/')[1]
   } else if (url.includes('-/files/')) {

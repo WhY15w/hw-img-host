@@ -6,7 +6,7 @@
  * @returns json
  */
 
-const reply = (code: number, msg: string, data) => {
+const reply = (code: number, msg: string, data: unknown) => {
   return {
     code,
     msg,

@@ -1,4 +1,4 @@
-export async function onRequest(context: any) {
+export async function onRequest(context: unknown) {
   let targetUrl = 'https://cnb.cool/' + context.env.SLUG_IMG + '/-/imgs/'
   const urlPath = context.params.path
   if (!urlPath) {
@@ -34,8 +34,8 @@ export async function onRequest(context: any) {
         'Cache-Control': 'public, max-age=30',
       },
     })
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e?.message || String(e) }), {
+  } catch (e: unknown) {
+    return new Response(JSON.stringify({ error: (e as Error)?.message || String(e) }), {
       status: 502,
       headers: {
         'content-type': 'application/json',

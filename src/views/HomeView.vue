@@ -25,7 +25,6 @@ const uploadInfo = ref<{
       <div class="w-full max-w-lg">
         <FileUploader
           v-model:uploadInfo="uploadInfo"
-          belongTo="mindmap"
           :maxHeight="5000"
           :maxWidth="5000"
           :quality="0.7"

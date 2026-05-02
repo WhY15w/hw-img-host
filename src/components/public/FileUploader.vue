@@ -114,7 +114,6 @@ import { toast } from 'vue-sonner'
 import { CheckCircle2, XCircle, LoaderIcon } from 'lucide-vue-next'
 
 interface Props {
-  belongTo?: string
   // 原图配置
   maxWidth?: number // 0 表示不限制，保持原始尺寸
   maxHeight?: number // 0 表示不限制，保持原始尺寸
@@ -157,23 +156,16 @@ interface ThumbnailResult {
   size: number
 }
 
-interface UploadResponse {
+interface SignResponse {
   code: number
   msg?: string
   data: {
-    url: string
-    thumbnailUrl?: string
-    assets?: {
-      path: string
-    }
-    thumbnailAssets?: {
-      path: string
-    }
+    assets: { path: string }
+    upload_url: string
   }
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  belongTo: 'mindmap',
   maxWidth: 0,
   maxHeight: 0,
   quality: 0.7,
@@ -360,6 +352,15 @@ async function generateThumbnailImage(file: File): Promise<ThumbnailResult> {
   })
 }
 
+function extractImagePath(url: string): string {
+  if (url.includes('-/imgs/')) {
+    return url.split('-/imgs/')[1] || url
+  } else if (url.includes('-/files/')) {
+    return url.split('-/files/')[1] || url
+  }
+  return url
+}
+
 function onFileChange(e: Event): void {
   const target = e.target as HTMLInputElement
   const f = target.files?.[0]
@@ -431,16 +432,18 @@ async function uploadFile(): Promise<void> {
   try {
     uploading.value = true
     uploadProgress.value = 0
-    const formData = new FormData()
-    formData.append('file', file.value)
-    formData.append('belongTo', props.belongTo)
 
-    if (props.generateThumbnail && thumbnailFile.value) {
-      formData.append('thumbnail', thumbnailFile.value)
+    const signRes = await axios.get<SignResponse>('/api/upload/sign', {
+      params: { name: file.value.name, size: file.value.size },
+    })
+    if (signRes.data.code !== 0) {
+      throw new Error(signRes.data.msg || '获取上传签名失败')
     }
 
-    const { data } = await axios.post<UploadResponse>('/api/upload/img', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const { assets, upload_url: uploadUrl } = signRes.data.data
+
+    await axios.put(uploadUrl, file.value, {
+      headers: { 'Content-Type': 'application/octet-stream' },
       onUploadProgress: (e: AxiosProgressEvent) => {
         if (e.total) {
           uploadProgress.value = Math.round((e.loaded / e.total) * 100)
@@ -449,18 +452,45 @@ async function uploadFile(): Promise<void> {
       timeout: 30000,
     })
 
-    if (data.code !== 0) {
-      throw new Error(data.msg || '上传失败')
+    const proxyUrl = window.location.origin + '/img-api/' + extractImagePath(assets.path)
+    const originUrl = 'https://cnb.cool' + assets.path
+
+    uploadedUrl.value = proxyUrl
+
+    let thumbProxyUrl: string | undefined
+    let thumbOriginUrl: string | undefined
+
+    if (thumbnailFile.value) {
+      uploadProgress.value = 0
+
+      const thumbSignRes = await axios.get<SignResponse>('/api/upload/sign', {
+        params: { name: thumbnailFile.value.name, size: thumbnailFile.value.size },
+      })
+      if (thumbSignRes.data.code !== 0) {
+        throw new Error(thumbSignRes.data.msg || '获取缩略图上传签名失败')
+      }
+
+      await axios.put(thumbSignRes.data.data.upload_url, thumbnailFile.value, {
+        headers: { 'Content-Type': 'application/octet-stream' },
+        onUploadProgress: (e: AxiosProgressEvent) => {
+          if (e.total) {
+            uploadProgress.value = Math.round((e.loaded / e.total) * 100)
+          }
+        },
+        timeout: 30000,
+      })
+
+      thumbProxyUrl =
+        window.location.origin + '/img-api/' + extractImagePath(thumbSignRes.data.data.assets.path)
+      thumbOriginUrl = 'https://cnb.cool' + thumbSignRes.data.data.assets.path
+      uploadedThumbnailUrl.value = thumbProxyUrl
     }
 
-    uploadedUrl.value = data.data.url
-    uploadedThumbnailUrl.value = data.data.thumbnailUrl || ''
-
     const uploadInfo: UploadInfo = {
-      url: uploadedUrl.value,
-      urlOriginal: 'https://cnb.cool' + data.data?.assets?.path,
-      thumbnailUrl: uploadedThumbnailUrl.value,
-      thumbnailOriginalUrl: 'https://cnb.cool' + data.data?.thumbnailAssets?.path,
+      url: proxyUrl,
+      urlOriginal: originUrl,
+      thumbnailUrl: thumbProxyUrl,
+      thumbnailOriginalUrl: thumbOriginUrl,
       name: file.value.name,
       size: file.value.size,
       type: file.value.type,
@@ -474,7 +504,7 @@ async function uploadFile(): Promise<void> {
     }
     emit('update:uploadInfo', uploadInfo)
 
-    toast.success(data.msg || '上传成功')
+    toast.success('上传成功')
   } catch (err) {
     console.error(err)
     const error = err as {

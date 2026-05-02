@@ -5,7 +5,7 @@
  * @param {*} data 相应数据
  * @returns json
  */
-const reply = (code: number, msg: string, data: unknown) => {
+const reply = (code: number, msg: string, data?: unknown) => {
   return {
     code,
     msg,

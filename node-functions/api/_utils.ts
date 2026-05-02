@@ -43,7 +43,7 @@ async function uploadToCnb({
       method: 'PUT',
       signal: controller.signal,
       headers: { 'Content-Type': 'application/octet-stream' },
-      body: fileBuffer,
+      body: new Uint8Array(fileBuffer),
     })
 
     if (!uploadResp.ok) {
@@ -57,4 +57,32 @@ async function uploadToCnb({
   }
 }
 
-export { uploadToCnb }
+async function signUpload({
+  fileName,
+  fileSize,
+  type = 'imgs',
+}: {
+  fileName: string
+  fileSize: number
+  type?: string
+}) {
+  const metaUrl = `https://api.cnb.cool/${process.env.SLUG_IMG}/-/upload/${type}`
+
+  const resp = await fetch(metaUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.TOKEN_IMG}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name: fileName, size: fileSize }),
+  })
+
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => '')
+    throw new Error(`获取上传签名失败: ${resp.status} ${resp.statusText} ${errText}`)
+  }
+
+  return await resp.json()
+}
+
+export { uploadToCnb, signUpload }

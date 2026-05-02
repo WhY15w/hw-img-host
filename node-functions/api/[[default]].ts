@@ -1,5 +1,5 @@
 import express from 'express'
-import { uploadToCnb } from './_utils'
+import { uploadToCnb, signUpload } from './_utils'
 import { reply } from './_reply'
 import multer from 'multer'
 
@@ -14,6 +14,20 @@ const app = express()
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`)
   next()
+})
+
+app.get('/upload/sign', async (req, res) => {
+  try {
+    const fileName = req.query.name as string
+    const fileSize = parseInt(req.query.size as string, 10)
+    if (!fileName || !fileSize) {
+      return res.status(400).json(reply(1, '缺少 name 或 size 参数'))
+    }
+    const result = await signUpload({ fileName, fileSize })
+    res.json(reply(0, 'ok', result))
+  } catch (e: unknown) {
+    res.status(500).json(reply(1, '获取上传签名失败', { message: (e as Error).message }))
+  }
 })
 
 app.post(

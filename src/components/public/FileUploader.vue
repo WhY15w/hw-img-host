@@ -1,11 +1,11 @@
 <template>
-  <div class="mx-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-sm transition">
+  <div class="mx-auto w-full rounded-xl border border-border/50 bg-card p-6">
     <label
-      class="mb-2 flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center text-sm transition"
+      class="mb-4 flex w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center text-sm transition-colors"
       :class="[
         isDragging
-          ? 'border-blue-500 bg-blue-50 text-blue-600'
-          : 'border-gray-300 text-gray-500 hover:border-blue-400 hover:bg-blue-50',
+          ? 'border-foreground/30 bg-foreground/3 text-foreground/70'
+          : 'border-border text-muted-foreground hover:border-foreground/20 hover:bg-foreground/2',
       ]"
       @dragover.prevent="isDragging = true"
       @dragleave.prevent="isDragging = false"
@@ -15,91 +15,77 @@
       <span v-if="!file">
         {{ isDragging ? '释放文件上传' : '点击或拖拽上传图片' }}
       </span>
-      <div v-else-if="processing" class="flex items-center gap-2 text-blue-600">
-        <LoaderIcon class="h-5 w-5 animate-spin text-gray-400" />
+      <div v-else-if="processing" class="flex items-center gap-2 text-muted-foreground">
+        <LoaderIcon class="h-5 w-5 animate-spin" />
         <span>图片处理中...</span>
       </div>
-      <div v-else class="flex w-full items-center justify-center font-medium text-blue-600">
-        <span class="max-w-[90%] truncate" :title="file?.name">
+      <div v-else class="flex w-full items-center justify-center text-foreground/80">
+        <span class="max-w-[90%] truncate text-sm" :title="file?.name">
           {{ file?.name }}
         </span>
         <XCircle
-          class="ml-2 inline h-4 w-4 cursor-pointer text-red-400 transition hover:text-red-500"
+          class="ml-2 h-4 w-4 cursor-pointer text-muted-foreground/40 transition hover:text-destructive"
           @click.stop="handleFile(null)"
         />
       </div>
     </label>
 
-    <!-- 原图信息 -->
-    <div v-if="file" class="mb-3 rounded-lg border border-gray-200 p-3">
-      <p class="mb-2 text-xs text-gray-500">原图信息:</p>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-600">
+    <div v-if="file" class="mb-3 rounded-lg border border-border/50 px-3.5 py-3">
+      <p class="mb-2 text-xs text-muted-foreground">原图信息</p>
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <p>
-          大小:
-          <span class="font-medium text-gray-800"> {{ (file.size / 1024).toFixed(2) }} KB </span>
+          大小
+          <span class="ml-1 text-foreground/70">{{ (file.size / 1024).toFixed(2) }} KB</span>
         </p>
         <p>
-          格式:
-          <span class="font-medium text-gray-800">
-            {{ file.type || '未知' }}
-          </span>
+          格式
+          <span class="ml-1 text-foreground/70">{{ file.type || '未知' }}</span>
         </p>
         <p>
-          压缩率:
-          <span class="font-medium text-gray-800"> {{ compressionRatio.toFixed(2) }}% </span>
+          压缩率
+          <span class="ml-1 text-foreground/70">{{ compressionRatio.toFixed(2) }}%</span>
         </p>
         <p>
-          尺寸:
-          <span class="font-medium text-gray-800"> {{ imageWidth }}x{{ imageHeight }} </span>
+          尺寸
+          <span class="ml-1 text-foreground/70">{{ imageWidth }}x{{ imageHeight }}</span>
         </p>
       </div>
     </div>
 
-    <!-- 缩略图预览 -->
     <div
       v-if="file && generateThumbnail && thumbnailPreview"
-      class="mb-3 rounded-lg border border-gray-200 p-3"
+      class="mb-3 rounded-lg border border-border/50 px-3.5 py-3"
     >
-      <p class="mb-2 text-xs text-gray-500">缩略图预览:</p>
+      <p class="mb-2 text-xs text-muted-foreground">缩略图预览</p>
       <div class="flex items-center gap-3">
-        <img :src="thumbnailPreview" alt="缩略图" class="h-20 w-20 rounded border object-cover" />
-        <div class="flex gap-4 text-xs text-gray-600">
+        <img
+          :src="thumbnailPreview"
+          alt="缩略图"
+          class="h-16 w-16 rounded-md border border-border/30 object-cover"
+        />
+        <div class="flex gap-5 text-xs text-muted-foreground">
           <p>
-            尺寸:
-            <span class="font-medium"> {{ thumbnailWidth }}x{{ thumbnailHeight }} </span>
+            尺寸
+            <span class="ml-1 text-foreground/70">{{ thumbnailWidth }}x{{ thumbnailHeight }}</span>
           </p>
           <p>
-            大小:
-            <span class="font-medium"> {{ (thumbnailSize / 1024).toFixed(2) }} KB </span>
+            大小
+            <span class="ml-1 text-foreground/70">{{ (thumbnailSize / 1024).toFixed(2) }} KB</span>
           </p>
         </div>
       </div>
     </div>
 
-    <Button
-      class="w-full rounded-xl bg-blue-500 text-white transition hover:bg-blue-600"
-      :disabled="!file || uploading"
-      @click="uploadFile"
-    >
+    <Button class="w-full" :disabled="!file || uploading" @click="uploadFile">
       {{ uploading ? '上传中...' : '开始上传' }}
     </Button>
 
     <div v-if="uploading" class="mt-4">
-      <Progress :model-value="uploadProgress" class="h-2 rounded-full" />
-      <p class="mt-2 text-center text-sm text-gray-600">{{ uploadProgress }}%</p>
+      <Progress :model-value="uploadProgress" class="h-1.5" />
+      <p class="mt-2 text-center text-xs text-muted-foreground">{{ uploadProgress }}%</p>
     </div>
 
-    <div v-if="uploadedUrl" class="mt-4 flex items-center justify-center text-center">
-      <div class="flex items-center text-sm text-green-600">
-        <CheckCircle2 class="mr-0.5 h-4 w-4" />
-        <span>上传成功！</span>
-      </div>
-      <a :href="uploadedUrl" target="_blank" class="ml-2 text-sm text-blue-500 hover:underline">
-        查看图片
-      </a>
-    </div>
-
-    <p v-if="errorMsg" class="mt-4 text-center text-sm text-red-500">
+    <p v-if="errorMsg" class="mt-4 text-center text-xs text-destructive">
       {{ errorMsg }}
     </p>
   </div>
@@ -111,7 +97,7 @@ import axios, { type AxiosProgressEvent } from 'axios'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'vue-sonner'
-import { CheckCircle2, XCircle, LoaderIcon } from 'lucide-vue-next'
+import { XCircle, LoaderIcon } from 'lucide-vue-next'
 
 interface Props {
   password?: string

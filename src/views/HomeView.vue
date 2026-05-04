@@ -20,37 +20,35 @@ const uploadInfo = ref<{
 </script>
 
 <template>
-  <div class="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50">
-    <div class="flex min-h-[calc(100vh-4px)] flex-col items-center justify-center px-4 py-12">
-      <div class="mb-4 text-center">
-        <div class="mb-4 flex items-center justify-center gap-3">
-          <Upload class="h-8 w-8" :stroke-width="2" />
-          <h1 class="text-3xl font-light tracking-tight text-gray-900">图片上传</h1>
+  <div class="min-h-screen bg-background">
+    <div class="flex min-h-screen flex-col items-center justify-center px-4 py-16">
+      <div class="mb-10 text-center">
+        <div class="mb-3 flex items-center justify-center gap-2.5">
+          <Upload class="h-6 w-6 text-foreground/60" :stroke-width="1.5" />
+          <h1 class="text-2xl font-normal tracking-wide text-foreground">图片上传</h1>
         </div>
-        <p class="mt-2 text-sm text-gray-500">支持拖拽上传 • 自动压缩 • 生成缩略图</p>
+        <p class="text-sm text-muted-foreground">拖拽上传 · 压缩转码 · 直达链接</p>
       </div>
 
-      <div class="w-full max-w-lg">
-        <div class="mx-auto mb-4 w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-sm">
-          <h3 class="text-sm font-medium text-gray-700">上传设置</h3>
-
+      <div class="w-full max-w-md space-y-5">
+        <div class="space-y-4 rounded-xl border border-border/50 bg-card px-5 py-4">
           <div class="space-y-1.5">
-            <Label for="upload-password" class="text-xs text-gray-500">上传密码</Label>
+            <Label for="upload-password" class="text-xs text-muted-foreground">上传密码</Label>
             <Input
               id="upload-password"
               v-model="password"
               type="password"
-              placeholder="请输入上传密码"
+              placeholder="未设置则无需输入"
               class="h-9"
             />
           </div>
 
-          <div class="space-y-1.5">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <Label class="text-xs text-gray-500">压缩质量</Label>
-              <span class="text-xs font-medium text-gray-700">
-                {{ Math.round(quality * 100) }}%
-              </span>
+              <Label class="text-xs text-muted-foreground">压缩质量</Label>
+              <span class="text-xs tabular-nums text-foreground/70"
+                >{{ Math.round(quality * 100) }}%</span
+              >
             </div>
             <Slider
               :model-value="[quality]"
@@ -62,7 +60,7 @@ const uploadInfo = ref<{
           </div>
 
           <div class="flex items-center justify-between">
-            <Label for="thumbnail-toggle" class="text-xs text-gray-500">生成缩略图</Label>
+            <Label for="thumbnail-toggle" class="text-xs text-muted-foreground">生成缩略图</Label>
             <Switch id="thumbnail-toggle" v-model="generateThumbnail" />
           </div>
         </div>
@@ -83,68 +81,54 @@ const uploadInfo = ref<{
       <Transition
         enter-active-class="transition duration-300 ease-out"
         enter-from-class="opacity-0 translate-y-4"
-        enter-to-class="opacity-100 translate-y-0"
         leave-active-class="transition duration-200 ease-in"
         leave-from-class="opacity-100 translate-y-0"
         leave-to-class="opacity-0 translate-y-4"
       >
         <div
           v-if="uploadInfo"
-          class="mt-8 w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 bg-white/80 shadow-sm backdrop-blur-sm"
+          class="mt-6 w-full max-w-md overflow-hidden rounded-xl border border-border/50 bg-card"
         >
-          <div
-            class="border-b border-gray-100 bg-linear-to-r from-green-50 to-emerald-50 px-6 py-4"
-          >
-            <div class="flex items-center gap-2">
-              <div class="h-2 w-2 animate-pulse rounded-full bg-green-500"></div>
-              <h3 class="text-sm font-medium text-gray-700">上传完成</h3>
-            </div>
+          <div class="px-5 py-3.5">
+            <span class="text-xs font-medium text-muted-foreground">上传完成</span>
           </div>
-          <div class="space-y-3 p-6">
-            <div class="group">
-              <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
-                代理原图链接
-              </p>
+          <div class="space-y-0.5 border-t border-border/30 px-5 py-3.5">
+            <div class="flex items-baseline gap-2 py-1.5">
+              <span class="w-17 shrink-0 text-xs text-muted-foreground/70">代理原图</span>
               <a
                 :href="uploadInfo.url"
                 target="_blank"
-                class="block truncate text-sm text-blue-600 transition hover:text-blue-700"
+                class="truncate text-sm text-foreground/80 underline-offset-2 transition hover:text-foreground hover:underline"
               >
                 {{ uploadInfo.url }}
               </a>
             </div>
-            <div v-if="uploadInfo.thumbnailUrl" class="group">
-              <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
-                代理缩略图链接
-              </p>
+            <div v-if="uploadInfo.thumbnailUrl" class="flex items-baseline gap-2 py-1.5">
+              <span class="w-17 shrink-0 text-xs text-muted-foreground/70">代理缩略图</span>
               <a
                 :href="uploadInfo.thumbnailUrl"
                 target="_blank"
-                class="block truncate text-sm text-purple-600 transition hover:text-purple-700"
+                class="truncate text-sm text-foreground/80 underline-offset-2 transition hover:text-foreground hover:underline"
               >
                 {{ uploadInfo.thumbnailUrl }}
               </a>
             </div>
-            <div class="group">
-              <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
-                CNB原图链接
-              </p>
+            <div class="flex items-baseline gap-2 py-1.5">
+              <span class="w-17 shrink-0 text-xs text-muted-foreground/70">CNB 原图</span>
               <a
                 :href="uploadInfo.urlOriginal"
                 target="_blank"
-                class="block truncate text-sm text-blue-600 transition hover:text-blue-700"
+                class="truncate text-sm text-foreground/80 underline-offset-2 transition hover:text-foreground hover:underline"
               >
                 {{ uploadInfo.urlOriginal }}
               </a>
             </div>
-            <div v-if="uploadInfo.thumbnailUrl" class="group">
-              <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-400">
-                CNB缩略图链接
-              </p>
+            <div v-if="uploadInfo.thumbnailUrl" class="flex items-baseline gap-2 py-1.5">
+              <span class="w-17 shrink-0 text-xs text-muted-foreground/70">CNB 缩略图</span>
               <a
                 :href="uploadInfo.thumbnailOriginalUrl"
                 target="_blank"
-                class="block truncate text-sm text-purple-600 transition hover:text-purple-700"
+                class="truncate text-sm text-foreground/80 underline-offset-2 transition hover:text-foreground hover:underline"
               >
                 {{ uploadInfo.thumbnailOriginalUrl }}
               </a>

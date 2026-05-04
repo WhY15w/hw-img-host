@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import axios, { type AxiosProgressEvent } from 'axios'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -114,15 +114,14 @@ import { toast } from 'vue-sonner'
 import { CheckCircle2, XCircle, LoaderIcon } from 'lucide-vue-next'
 
 interface Props {
-  // 原图配置
-  maxWidth?: number // 0 表示不限制，保持原始尺寸
-  maxHeight?: number // 0 表示不限制，保持原始尺寸
-  quality?: number // 原图压缩质量
-  // 缩略图配置
-  generateThumbnail?: boolean // 是否生成缩略图
-  thumbnailMaxWidth?: number // 缩略图最大宽度
-  thumbnailMaxHeight?: number // 缩略图最大高度
-  thumbnailQuality?: number // 缩略图质量
+  password?: string
+  maxWidth?: number
+  maxHeight?: number
+  quality?: number
+  generateThumbnail?: boolean
+  thumbnailMaxWidth?: number
+  thumbnailMaxHeight?: number
+  thumbnailQuality?: number
 }
 
 interface UploadInfo {
@@ -166,6 +165,7 @@ interface SignResponse {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  password: undefined,
   maxWidth: 0,
   maxHeight: 0,
   quality: 0.7,
@@ -180,6 +180,7 @@ const emit = defineEmits<{
 }>()
 
 const file = ref<File | null>(null)
+const originalFile = ref<File | null>(null)
 const thumbnailFile = ref<File | null>(null)
 const thumbnailPreview = ref<string>('')
 const thumbnailWidth = ref<number>(0)
@@ -195,6 +196,44 @@ const isDragging = ref<boolean>(false)
 const compressionRatio = ref<number>(0)
 const imageWidth = ref<number>(0)
 const imageHeight = ref<number>(0)
+
+let qualityDebounceTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => props.quality,
+  () => {
+    if (qualityDebounceTimer) clearTimeout(qualityDebounceTimer)
+    qualityDebounceTimer = setTimeout(() => {
+      if (originalFile.value && !processing.value && !uploading.value) {
+        handleFile(originalFile.value)
+      }
+    }, 300)
+  },
+)
+
+watch(
+  () => props.generateThumbnail,
+  (newVal) => {
+    if (!newVal) {
+      thumbnailFile.value = null
+      thumbnailPreview.value = ''
+      thumbnailWidth.value = 0
+      thumbnailHeight.value = 0
+      thumbnailSize.value = 0
+    } else if (file.value && !processing.value) {
+      generateThumbnailImage(file.value).then((t) => {
+        thumbnailFile.value = t.thumbnailFile
+        thumbnailPreview.value = t.previewUrl
+        thumbnailWidth.value = t.width
+        thumbnailHeight.value = t.height
+        thumbnailSize.value = t.size
+      })
+    }
+  },
+)
+
+onUnmounted(() => {
+  if (qualityDebounceTimer) clearTimeout(qualityDebounceTimer)
+})
 
 async function compressImageToWebp(
   file: File,
@@ -380,6 +419,7 @@ function onDrop(e: DragEvent): void {
 async function handleFile(f: File | null): Promise<void> {
   if (!f) {
     file.value = null
+    originalFile.value = null
     thumbnailFile.value = null
     thumbnailPreview.value = ''
     return
@@ -392,6 +432,7 @@ async function handleFile(f: File | null): Promise<void> {
       errorMsg.value = '图片大小不能超过 20MB'
       return
     }
+    originalFile.value = f
     const { compressedFile, width, height } = await compressImageToWebp(
       f,
       props.quality,
@@ -434,7 +475,11 @@ async function uploadFile(): Promise<void> {
     uploadProgress.value = 0
 
     const signRes = await axios.get<SignResponse>('/api/upload/sign', {
-      params: { name: file.value.name, size: file.value.size },
+      params: {
+        name: file.value.name,
+        size: file.value.size,
+        ...(props.password ? { password: props.password } : {}),
+      },
     })
     if (signRes.data.code !== 0) {
       throw new Error(signRes.data.msg || '获取上传签名失败')
@@ -464,7 +509,11 @@ async function uploadFile(): Promise<void> {
       uploadProgress.value = 0
 
       const thumbSignRes = await axios.get<SignResponse>('/api/upload/sign', {
-        params: { name: thumbnailFile.value.name, size: thumbnailFile.value.size },
+        params: {
+          name: thumbnailFile.value.name,
+          size: thumbnailFile.value.size,
+          ...(props.password ? { password: props.password } : {}),
+        },
       })
       if (thumbSignRes.data.code !== 0) {
         throw new Error(thumbSignRes.data.msg || '获取缩略图上传签名失败')

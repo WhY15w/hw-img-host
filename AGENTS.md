@@ -53,6 +53,7 @@ These are set in EdgeOne console — not in code or `.env` files:
 | `BASE_IMG_URL` | `https://img.example.com/` (trailing slash required) |
 | `SLUG_IMG` | `username/repo-name` |
 | `TOKEN_IMG` | CNB personal access token |
+| `UPLOAD_PASSWORD` | Upload password (if set, must match the password sent by client; if empty/unset, no password required) |
 
 ## Code conventions
 

@@ -23,6 +23,15 @@ app.get('/upload/sign', async (req, res) => {
     if (!fileName || !fileSize) {
       return res.status(400).json(reply(1, '缺少 name 或 size 参数'))
     }
+
+    const uploadPassword = process.env.UPLOAD_PASSWORD
+    if (uploadPassword) {
+      const password = req.query.password as string
+      if (!password || password !== uploadPassword) {
+        return res.status(401).json(reply(1, '密码错误'))
+      }
+    }
+
     const result = await signUpload({ fileName, fileSize })
     res.json(reply(0, 'ok', result))
   } catch (e: unknown) {

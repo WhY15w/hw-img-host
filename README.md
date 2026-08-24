@@ -42,7 +42,8 @@ Browser (Vue 3)
 ├── 选择图片 → 客户端 Canvas WebP 压缩 → 可选缩略图生成
 ├── 服务端上传 → POST /api/upload/img (multipart/form-data, multer 单文件 5MB, 需 Bearer token)
 │   └── routes/upload.ts: authMiddleware → 接收文件 → uploadToCnb() → CNB API → 返回代理链接
-└── 展示代理图片链接
+├── 保存图库记录 → POST /kv-api（上传成功后前端将图片记录写入 KV Storage）
+└── 图库列表 → GET /kv-api（从 KV Storage 读取记录，需 Bearer token）
 
 Image serving:
 GET /img-api/* (eg. https://img.example.com/img-api/path/to/img.webp)
@@ -95,6 +96,17 @@ pnpm dev
 
 > **密码保护**：设置 `UPLOAD_PASSWORD` 后，访问图床需先通过 `/login` 登录获取 JWT token，后续请求需携带 Bearer token。未设置 `UPLOAD_PASSWORD` 则登录接口返回错误，上传接口也因缺少 JWT 密钥而不可用。
 
+### KV Storage（图库功能必需）
+
+图库依赖 EdgeOne **KV Storage** 保存图片记录（上传成功后由前端写入 `POST /kv-api`，图库读取 `GET /kv-api`）。**未配置时图库无法使用**，页面会提示配置错误。
+
+1. 登录 [EdgeOne Pages 控制台](https://console.cloud.tencent.com/edgeone/pages)，进入 **KV Storage** 页面
+2. 若未开通，点击 **申请开通**（免费额度含 1GB 存储）
+3. 点击 **创建命名空间**，例如命名空间名 `img-kv-store`
+4. 绑定到本项目：进入命名空间 → **关联项目**（或在项目设置的 **KV Storage** 菜单中）→ 选择本项目，**变量名填 `img_kv`**
+
+> **变量名必须是 `img_kv`**：代码通过全局变量 `img_kv` 访问 KV（EdgeOne 的 KV 命名空间是全局变量，不在 `context.env` 中）。变量名不同则图库无法读写。
+
 ## 获取 TOKEN_IMG
 
 1. 登录 [CNB 官网](https://cnb.cool/)，点击右上角头像 → **个人设置**
@@ -105,7 +117,7 @@ pnpm dev
 
    ![访问令牌](./img/2.png)
 
-3. 授权范围选到最大（如有安全顾虑，请参考[官方文档](https://cnb.cool/docs)）
+3. 授权范围选到最大（如有安全顾虑，请参考[官方文档](https://docs.cnb.cool/zh/)）
 
    ![生成Token](./img/3.png)
 
@@ -151,9 +163,11 @@ hw-img-host/
 │       ├── _auth.ts               # getSecret() + authMiddleware (JWT 校验)
 │       ├── _utils.ts              # uploadToCnb() / buildImageUrl()
 │       └── _reply.ts              # 统一响应格式 { code, msg, data }
-├── edge-functions/                # 边缘函数 (图片代理)
-│   └── img-api/
-│       └── [[path]].ts            # 动态路由: GET /img-api/* → CNB 代理
+├── edge-functions/                # 边缘函数
+│   ├── img-api/
+│   │   └── [[path]].ts            # 动态路由: GET /img-api/* → CNB 代理
+│   └── kv-api/
+│       └── [[path]].ts            # GET/POST /kv-api — 图库记录读写 (KV Storage, 变量名 img_kv)
 ├── public/                        # 静态资源
 ├── img/                           # 文档图片资源
 ├── eslint.config.ts               # ESLint 扁平配置
@@ -173,7 +187,8 @@ hw-img-host/
 3. **客户端压缩**：Canvas API 将图片转为 WebP 格式，按用户设定的质量压缩；若压缩后仍超过 4.5MB（EdgeOne Node Functions 请求体上限 6MB），自动迭代降低尺寸与质量
 4. **缩略图生成**（可选）：基于压缩后的图片生成缩略图
 5. **服务端中转**：`POST /api/upload/img`（multipart/form-data，需 Bearer token），multer 接收 `file` 与可选 `thumbnail` 后由服务端上传至 CNB
-6. **展示链接**：返回 EdgeOne 代理链接（带 CORS）和 CNB 原始链接
+6. **保存记录**：上传成功后前端自动将图片信息写入 `POST /kv-api`（KV Storage），供图库页面展示
+7. **展示链接**：返回 EdgeOne 代理链接（带 CORS）和 CNB 原始链接
 
 ## 贡献
 

@@ -36,6 +36,11 @@ Image serving:
   GET /img-api/* (e.g. https://img.example.com/img-api/path/to/img.webp)
     └─ edge-functions/img-api/[[path]].ts (EdgeOne Edge Function)
          └─ proxies to CNB with CORS + 30s cache
+
+Gallery records:
+  GET/POST /kv-api (EdgeOne Edge Function)
+    └─ edge-functions/kv-api/[[path]].ts reads/writes the `img_kv` KV namespace
+         └─ KV is a global variable (bound in console), NOT on context.env
 ```
 
 - **Frontend**: Vue 3 + `<script setup lang="ts">` + Composition API. Three routes: `/` (HomeView), `/gallery` (GalleryView), `/login` (LoginView). Auth via `useAuth` composable (`src/composables/useAuth.ts`) — JWT stored in localStorage, axios interceptor adds Bearer token to all requests. Login redirect is handled by router guard in `src/router/index.ts`.
@@ -46,6 +51,7 @@ Image serving:
   - `_utils.ts` — `uploadToCnb()`, `buildImageUrl()`, `extractImagePath()`
   - `_reply.ts` — `reply()` helper, shape: `{ code, msg, data }` (code=0 is success)
 - **Edge proxy**: `edge-functions/img-api/[[path]].ts` — catches `/img-api/*`, forwards to CNB with CORS headers.
+- **Gallery KV**: `edge-functions/kv-api/[[path]].ts` — `GET /kv-api` lists image records, `POST /kv-api` saves them (HomeView POSTs the record after each upload); requires Bearer JWT; needs the `img_kv` KV namespace bound in the console, otherwise returns a 500 with a clear message.
 - **`[[default]].ts` / `[[path]].ts`** naming is EdgeOne Pages convention (catch-all and dynamic route functions). Do not rename.
 - **No tests exist** in this project.
 
@@ -59,6 +65,8 @@ These are set in EdgeOne console — not in code or `.env` files:
 | `SLUG_IMG`        | `username/repo-name`                                                                   |
 | `TOKEN_IMG`       | CNB personal access token                                                              |
 | `UPLOAD_PASSWORD` | Upload password (doubles as JWT secret; if empty/unset, login and sign endpoints fail) |
+
+Also required for the gallery: **KV Storage** must be enabled in the EdgeOne console and a namespace bound to the project **with variable name `img_kv`** (it becomes a global variable in Edge Functions; see `edge-functions/kv-api/[[path]].ts`). Without it, `GET /kv-api` returns a 500 with a clear message instead of silently showing an empty gallery.
 
 ## Code conventions
 

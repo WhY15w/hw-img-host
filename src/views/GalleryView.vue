@@ -79,9 +79,15 @@ async function fetchImages() {
     const res = await fetch('/kv-api', {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
-    const json: ListResponse = await res.json()
-    if (json.code !== 0) {
-      error.value = json.msg || '加载失败'
+    let json: ListResponse
+    try {
+      json = (await res.json()) as ListResponse
+    } catch {
+      error.value = `请求失败（HTTP ${res.status}）`
+      return
+    }
+    if (!res.ok || json.code !== 0) {
+      error.value = json.msg || `请求失败（HTTP ${res.status}）`
       return
     }
     images.value = json.data.images

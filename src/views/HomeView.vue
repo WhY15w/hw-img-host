@@ -2,6 +2,7 @@
 import FileUploader from '@/components/public/FileUploader.vue'
 import { ref, watch } from 'vue'
 import { Upload } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -26,9 +27,10 @@ const uploadInfo = ref<{
   thumbnailSize: number
 } | null>(null)
 
-watch(uploadInfo, (val) => {
-  if (val) {
-    fetch('/kv-api', {
+watch(uploadInfo, async (val) => {
+  if (!val) return
+  try {
+    const res = await fetch('/kv-api', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -37,7 +39,14 @@ watch(uploadInfo, (val) => {
           : {}),
       },
       body: JSON.stringify(val),
-    }).catch(() => {})
+    })
+    const json = (await res.json()) as { code: number; msg?: string }
+    if (!res.ok || json.code !== 0) {
+      throw new Error(json.msg || `保存失败（HTTP ${res.status}）`)
+    }
+  } catch (err) {
+    console.error('保存图库记录失败:', err)
+    toast.error(err instanceof Error && err.message ? err.message : '图库记录保存失败')
   }
 })
 </script>

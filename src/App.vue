@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { Toaster } from 'vue-sonner'
 import { Upload, Image, LogOut } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -58,5 +59,6 @@ function handleLogout() {
     <div :class="{ 'pt-12': isAuthenticated }">
       <RouterView />
     </div>
+    <Toaster position="top-center" richColors closeButton />
   </div>
 </template>

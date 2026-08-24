@@ -67,19 +67,16 @@ function jsonRes(data: unknown, status = 200): Response {
 
 function getKV(): KvStore {
   if (typeof img_kv === 'undefined') {
-    throw new Error('KV Storage 未配置')
+    throw new Error(
+      'KV Storage 未配置：请在 EdgeOne Pages 控制台启用 KV 存储，创建命名空间并绑定到本项目（变量名 img_kv）',
+    )
   }
   return img_kv
 }
 
 async function getItems(): Promise<Record<string, unknown>[]> {
-  try {
-    const data = await getKV().get(KV_KEY, 'json')
-    return Array.isArray(data) ? (data as Record<string, unknown>[]) : []
-  } catch (e) {
-    console.error('KV getItems error:', (e as Error).message)
-    return []
-  }
+  const data = await getKV().get(KV_KEY, 'json')
+  return Array.isArray(data) ? (data as Record<string, unknown>[]) : []
 }
 
 async function addItem(item: Record<string, unknown>) {

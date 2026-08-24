@@ -13,7 +13,8 @@ function extractImagePath(rawPath: string): string {
 }
 
 function buildImageUrl(baseUrl: string, rawPath: string): string {
-  return baseUrl + 'img-api/' + extractImagePath(rawPath)
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+  return normalizedBase + 'img-api/' + extractImagePath(rawPath)
 }
 
 async function requestUploadMeta(

@@ -41,7 +41,10 @@ router.post(
 
       const mainFile = files.file[0]
       const thumbnailFile = files.thumbnail?.[0]
-      const baseUrl = process.env.BASE_IMG_URL!
+      const baseUrl = process.env.BASE_IMG_URL
+      if (!baseUrl) {
+        return res.status(500).json(reply(1, '服务器未配置 BASE_IMG_URL（图床域名，结尾需带斜杠）'))
+      }
 
       const mainResult = await uploadToCnb({
         fileBuffer: mainFile.buffer,

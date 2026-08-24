@@ -27,10 +27,10 @@
 Browser (Vue 3 SPA)
   ├─ Password login → POST /api/auth/login
   │    └─ returns JWT token (7d expiry, stored in localStorage)
-  ├─ Get upload signature → GET /api/upload/sign?name=&size= (auth required)
-  │    └─ returns CNB PUT URL for client-side direct upload
-  └─ Server-side upload → POST /api/upload/img (multipart/form-data, multer 20MB)
-       └─ compresses server-side → uploads to CNB → returns proxy URLs
+  ├─ Client-side compression → Canvas WebP + optional thumbnail (≤ 4.5MB via iterative downscale)
+  └─ Server-side upload → POST /api/upload/img (multipart/form-data, multer 5MB/file, auth required)
+       └─ uploads to CNB server-to-server → returns proxy URLs
+       (client-direct PUT was dropped: CNB tightened CORS on its upload host)
 
 Image serving:
   GET /img-api/* (e.g. https://img.example.com/img-api/path/to/img.webp)
@@ -41,9 +41,9 @@ Image serving:
 - **Frontend**: Vue 3 + `<script setup lang="ts">` + Composition API. Three routes: `/` (HomeView), `/gallery` (GalleryView), `/login` (LoginView). Auth via `useAuth` composable (`src/composables/useAuth.ts`) — JWT stored in localStorage, axios interceptor adds Bearer token to all requests. Login redirect is handled by router guard in `src/router/index.ts`.
 - **Backend API**: `node-functions/api/[[default]].ts` mounts two Express sub-routers:
   - `routes/auth.ts` — `POST /api/auth/login` (validates `UPLOAD_PASSWORD`, returns JWT)
-  - `routes/upload.ts` — `GET /api/upload/sign` (auth required, returns CNB upload signature) + `POST /api/upload/img` (direct multer upload to CNB)
+  - `routes/upload.ts` — `POST /api/upload/img` (auth required; multer receives `file` + optional `thumbnail`, uploads both to CNB)
   - `_auth.ts` — JWT sign/verify using `UPLOAD_PASSWORD` as secret; `authMiddleware` for route protection
-  - `_utils.ts` — `uploadToCnb()`, `signUpload()`, `buildImageUrl()`, `extractImagePath()`
+  - `_utils.ts` — `uploadToCnb()`, `buildImageUrl()`, `extractImagePath()`
   - `_reply.ts` — `reply()` helper, shape: `{ code, msg, data }` (code=0 is success)
 - **Edge proxy**: `edge-functions/img-api/[[path]].ts` — catches `/img-api/*`, forwards to CNB with CORS headers.
 - **`[[default]].ts` / `[[path]].ts`** naming is EdgeOne Pages convention (catch-all and dynamic route functions). Do not rename.

@@ -41,6 +41,12 @@ async function requestUploadMeta(
   return (await resp.json()) as { assets: Record<string, unknown>; upload_url: string }
 }
 
+function requestTimeout(ms = 30000): { signal: AbortSignal; clear: () => void } {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+  return { signal: controller.signal, clear: () => clearTimeout(timeoutId) }
+}
+
 async function uploadToCnb({
   fileBuffer,
   fileName,
@@ -50,20 +56,19 @@ async function uploadToCnb({
   fileName: string
   type?: string
 }) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000)
+  const timeout = requestTimeout(30000)
 
   try {
     const { assets, upload_url } = await requestUploadMeta(
       fileName,
       fileBuffer.length,
       type,
-      controller.signal,
+      timeout.signal,
     )
 
     const uploadResp = await fetch(upload_url, {
       method: 'PUT',
-      signal: controller.signal,
+      signal: timeout.signal,
       headers: { 'Content-Type': 'application/octet-stream' },
       body: new Uint8Array(fileBuffer),
     })
@@ -75,20 +80,8 @@ async function uploadToCnb({
 
     return { assets, url: assets['path'] }
   } finally {
-    clearTimeout(timeoutId)
+    timeout.clear()
   }
 }
 
-async function signUpload({
-  fileName,
-  fileSize,
-  type = 'imgs',
-}: {
-  fileName: string
-  fileSize: number
-  type?: string
-}) {
-  return await requestUploadMeta(fileName, fileSize, type)
-}
-
-export { uploadToCnb, signUpload, getErrorDetail, extractImagePath, buildImageUrl }
+export { uploadToCnb, getErrorDetail, extractImagePath, buildImageUrl }

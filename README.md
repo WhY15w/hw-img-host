@@ -40,11 +40,8 @@ Browser (Vue 3)
 │       ├── routes/auth.ts: 校验 UPLOAD_PASSWORD，返回 JWT (7天)
 │       └── 前端 useAuth composable: 存 token 到 localStorage，axios 拦截器自动附加
 ├── 选择图片 → 客户端 Canvas WebP 压缩 → 可选缩略图生成
-├── 获取上传签名 → GET /api/upload/sign?name=...&size=... (需 Bearer token)
-│   └── routes/upload.ts: _auth.ts authMiddleware → CNB API → 返回签名 URL
-├── PUT 签名 URL (直传 CNB 对象存储)
-├── 或 服务端上传 → POST /api/upload/img (multipart/form-data, multer 20MB)
-│   └── routes/upload.ts: 接收文件 → uploadToCnb() → CNB API → 返回代理链接
+├── 服务端上传 → POST /api/upload/img (multipart/form-data, multer 单文件 5MB, 需 Bearer token)
+│   └── routes/upload.ts: authMiddleware → 接收文件 → uploadToCnb() → CNB API → 返回代理链接
 └── 展示代理图片链接
 
 Image serving:
@@ -89,14 +86,14 @@ pnpm dev
 
 在 EdgeOne 控制台中设置以下环境变量（不在 `.env` 文件中配置）：
 
-| 变量              | 说明                                                              | 示例                       |
-| ----------------- | ----------------------------------------------------------------- | -------------------------- |
-| `BASE_IMG_URL`    | 图床域名，**结尾必须带斜杠**                                      | `https://img.example.com/` |
-| `SLUG_IMG`        | CNB 图床仓库名                                                    | `your-username/your-repo`  |
-| `TOKEN_IMG`       | CNB 个人访问令牌                                                  | `xxxx`                     |
-| `UPLOAD_PASSWORD` | 上传密码（同时作为 JWT 密钥；未设置时登录和上传签名接口将不可用） | `your-secret-123`          |
+| 变量              | 说明                                                          | 示例                       |
+| ----------------- | ------------------------------------------------------------- | -------------------------- |
+| `BASE_IMG_URL`    | 图床域名，**结尾必须带斜杠**                                  | `https://img.example.com/` |
+| `SLUG_IMG`        | CNB 图床仓库名                                                | `your-username/your-repo`  |
+| `TOKEN_IMG`       | CNB 个人访问令牌                                              | `xxxx`                     |
+| `UPLOAD_PASSWORD` | 上传密码（同时作为 JWT 密钥；未设置时登录和上传接口将不可用） | `your-secret-123`          |
 
-> **密码保护**：设置 `UPLOAD_PASSWORD` 后，访问图床需先通过 `/login` 登录获取 JWT token，后续请求需携带 Bearer token。未设置 `UPLOAD_PASSWORD` 则登录接口返回错误，上传签名接口也因缺少 JWT 密钥而不可用。
+> **密码保护**：设置 `UPLOAD_PASSWORD` 后，访问图床需先通过 `/login` 登录获取 JWT token，后续请求需携带 Bearer token。未设置 `UPLOAD_PASSWORD` 则登录接口返回错误，上传接口也因缺少 JWT 密钥而不可用。
 
 ## 获取 TOKEN_IMG
 
@@ -150,9 +147,9 @@ hw-img-host/
 │       ├── [[default]].ts         # Express 入口，挂载 /auth 和 /upload 子路由
 │       ├── routes/
 │       │   ├── auth.ts            # POST /auth/login — 密码验证 + JWT 签发
-│       │   └── upload.ts          # GET /upload/sign + POST /upload/img（multer 20MB）
+│       │   └── upload.ts          # POST /upload/img（multer 单文件 5MB，需 Bearer token）
 │       ├── _auth.ts               # getSecret() + authMiddleware (JWT 校验)
-│       ├── _utils.ts              # uploadToCnb() / signUpload() / buildImageUrl()
+│       ├── _utils.ts              # uploadToCnb() / buildImageUrl()
 │       └── _reply.ts              # 统一响应格式 { code, msg, data }
 ├── edge-functions/                # 边缘函数 (图片代理)
 │   └── img-api/
@@ -167,19 +164,16 @@ hw-img-host/
 
 ## 上传流程
 
-### 客户端直传 (推荐)
+### 客户端压缩 + 服务端中转
+
+> 因 CNB 收紧了上传域名的 CORS 限制，客户端直传已不可用，统一走服务端中转。
 
 1. **登录认证**：`POST /api/auth/login` 获取 JWT token，存入 localStorage
 2. **选择文件**：拖拽或点击选择图片（≤ 20MB）
-3. **客户端压缩**：Canvas API 将图片转为 WebP 格式，按用户设定的质量压缩
+3. **客户端压缩**：Canvas API 将图片转为 WebP 格式，按用户设定的质量压缩；若压缩后仍超过 4.5MB（EdgeOne Node Functions 请求体上限 6MB），自动迭代降低尺寸与质量
 4. **缩略图生成**（可选）：基于压缩后的图片生成缩略图
-5. **获取签名**：`GET /api/upload/sign`（需 Bearer token），向 CNB API 获取上传签名 URL
-6. **直传 CNB**：`PUT` 到 CNB 签名 URL，直接上传文件内容
-7. **展示链接**：返回 EdgeOne 代理链接（带 CORS）和 CNB 原始链接
-
-### 服务端上传
-
-使用 `POST /api/upload/img`（multipart/form-data），由服务端 multer 接收后通过 `uploadToCnb()` 上传至 CNB，返回代理链接。
+5. **服务端中转**：`POST /api/upload/img`（multipart/form-data，需 Bearer token），multer 接收 `file` 与可选 `thumbnail` 后由服务端上传至 CNB
+6. **展示链接**：返回 EdgeOne 代理链接（带 CORS）和 CNB 原始链接
 
 ## 贡献
 

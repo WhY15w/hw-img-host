@@ -140,12 +140,15 @@ interface ThumbnailResult {
   size: number
 }
 
-interface SignResponse {
+interface UploadResponse {
   code: number
   msg?: string
   data: {
+    url: string
+    thumbnailUrl: string | null
     assets: { path: string }
-    upload_url: string
+    thumbnailAssets: { path: string } | null
+    hasThumbnail: boolean
   }
 }
 
@@ -219,98 +222,104 @@ onUnmounted(() => {
   if (qualityDebounceTimer) clearTimeout(qualityDebounceTimer)
 })
 
-async function compressImageToWebp(
-  file: File,
-  quality: number = 0.7,
-  maxWidth: number = 0,
-  maxHeight: number = 0,
-): Promise<CompressResult> {
+const MAX_UPLOAD_BYTES = 4.5 * 1024 * 1024
+const MIN_COMPRESS_EDGE = 100
+
+function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.readAsDataURL(file)
     reader.onload = (e: ProgressEvent<FileReader>) => {
       const img = new Image()
       img.src = e.target?.result as string
-      img.onload = async () => {
-        let width = img.width
-        let height = img.height
-
-        if (maxWidth > 0 || maxHeight > 0) {
-          if (maxWidth > 0 && maxHeight > 0) {
-            const ratio = Math.min(maxWidth / width, maxHeight / height)
-            if (ratio < 1) {
-              width = Math.round(width * ratio)
-              height = Math.round(height * ratio)
-            }
-          } else if (maxWidth > 0 && width > maxWidth) {
-            const ratio = maxWidth / width
-            width = maxWidth
-            height = Math.round(height * ratio)
-          } else if (maxHeight > 0 && height > maxHeight) {
-            const ratio = maxHeight / height
-            height = maxHeight
-            width = Math.round(width * ratio)
-          }
-        }
-
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-
-        if (!ctx) {
-          reject(new Error('无法获取 canvas context'))
-          return
-        }
-
-        canvas.width = width
-        canvas.height = height
-        ctx.drawImage(img, 0, 0, width, height)
-
-        const pixelCount = width * height
-        let effectiveQuality = quality
-        if (pixelCount > 4_000_000) {
-          effectiveQuality = Math.min(quality, 0.6)
-        } else if (pixelCount > 2_000_000) {
-          effectiveQuality = Math.min(quality, 0.65)
-        }
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('WebP 转换失败'))
-              return
-            }
-            if (blob.size > 3 * 1024 * 1024 && effectiveQuality > 0.3) {
-              canvas.toBlob(
-                (retryBlob) => {
-                  if (!retryBlob) {
-                    reject(new Error('WebP 转换失败'))
-                    return
-                  }
-                  const compressedFile = new File(
-                    [retryBlob],
-                    file.name.replace(/\.\w+$/, '.webp'),
-                    { type: 'image/webp' },
-                  )
-                  resolve({ compressedFile, width, height })
-                },
-                'image/webp',
-                0.3,
-              )
-              return
-            }
-            const compressedFile = new File([blob], file.name.replace(/\.\w+$/, '.webp'), {
-              type: 'image/webp',
-            })
-            resolve({ compressedFile, width, height })
-          },
-          'image/webp',
-          effectiveQuality,
-        )
-      }
+      img.onload = () => resolve(img)
       img.onerror = () => reject(new Error('图片加载失败'))
     }
     reader.onerror = () => reject(new Error('文件读取失败'))
   })
+}
+
+function renderWebpBlob(
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+  quality: number,
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      resolve(null)
+      return
+    }
+
+    canvas.width = width
+    canvas.height = height
+    ctx.drawImage(img, 0, 0, width, height)
+
+    canvas.toBlob((blob) => resolve(blob), 'image/webp', quality)
+  })
+}
+
+async function compressImageToWebp(
+  file: File,
+  quality: number = 0.7,
+  maxWidth: number = 0,
+  maxHeight: number = 0,
+): Promise<CompressResult> {
+  const img = await loadImage(file)
+  let width = img.width
+  let height = img.height
+
+  if (maxWidth > 0 || maxHeight > 0) {
+    if (maxWidth > 0 && maxHeight > 0) {
+      const ratio = Math.min(maxWidth / width, maxHeight / height)
+      if (ratio < 1) {
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+    } else if (maxWidth > 0 && width > maxWidth) {
+      const ratio = maxWidth / width
+      width = maxWidth
+      height = Math.round(height * ratio)
+    } else if (maxHeight > 0 && height > maxHeight) {
+      const ratio = maxHeight / height
+      height = maxHeight
+      width = Math.round(width * ratio)
+    }
+  }
+
+  const pixelCount = width * height
+  let effectiveQuality = quality
+  if (pixelCount > 4_000_000) {
+    effectiveQuality = Math.min(quality, 0.6)
+  } else if (pixelCount > 2_000_000) {
+    effectiveQuality = Math.min(quality, 0.65)
+  }
+
+  for (;;) {
+    const blob = await renderWebpBlob(img, width, height, effectiveQuality)
+    if (!blob) {
+      throw new Error('WebP 转换失败')
+    }
+    if (blob.size <= MAX_UPLOAD_BYTES) {
+      const compressedFile = new File([blob], file.name.replace(/\.\w+$/, '.webp'), {
+        type: 'image/webp',
+      })
+      return { compressedFile, width, height }
+    }
+    if (width <= MIN_COMPRESS_EDGE || height <= MIN_COMPRESS_EDGE) {
+      throw new Error(
+        `图片压缩后仍超过 ${(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(1)}MB，请缩小图片尺寸后重试`,
+      )
+    }
+    width = Math.max(MIN_COMPRESS_EDGE, Math.round(width * 0.85))
+    height = Math.max(MIN_COMPRESS_EDGE, Math.round(height * 0.85))
+    if (effectiveQuality > 0.3) {
+      effectiveQuality = Math.max(0.3, effectiveQuality - 0.1)
+    }
+  }
 }
 async function generateThumbnailImage(file: File): Promise<ThumbnailResult> {
   return new Promise((resolve, reject) => {
@@ -371,15 +380,6 @@ async function generateThumbnailImage(file: File): Promise<ThumbnailResult> {
   })
 }
 
-function extractImagePath(url: string): string {
-  if (url.includes('-/imgs/')) {
-    return url.split('-/imgs/')[1] || url
-  } else if (url.includes('-/files/')) {
-    return url.split('-/files/')[1] || url
-  }
-  return url
-}
-
 function onFileChange(e: Event): void {
   const target = e.target as HTMLInputElement
   const f = target.files?.[0]
@@ -438,7 +438,7 @@ async function handleFile(f: File | null): Promise<void> {
     uploadedThumbnailUrl.value = ''
   } catch (err) {
     console.error('压缩失败:', err)
-    errorMsg.value = '图片处理失败'
+    errorMsg.value = err instanceof Error && err.message ? err.message : '图片处理失败'
   } finally {
     processing.value = false
   }
@@ -453,29 +453,27 @@ async function uploadFile(): Promise<void> {
     uploading.value = true
     uploadProgress.value = 0
 
-    const signRes = await axios.get<SignResponse>('/api/upload/sign', {
-      params: {
-        name: file.value.name,
-        size: file.value.size,
-      },
-    })
-    if (signRes.data.code !== 0) {
-      throw new Error(signRes.data.msg || '获取上传签名失败')
+    const form = new FormData()
+    form.append('file', file.value)
+    if (thumbnailFile.value) {
+      form.append('thumbnail', thumbnailFile.value)
     }
 
-    const { assets, upload_url: uploadUrl } = signRes.data.data
-
-    await axios.put(uploadUrl, file.value, {
-      headers: { 'Content-Type': 'application/octet-stream' },
+    const res = await axios.post<UploadResponse>('/api/upload/img', form, {
       onUploadProgress: (e: AxiosProgressEvent) => {
         if (e.total) {
           uploadProgress.value = Math.round((e.loaded / e.total) * 100)
         }
       },
-      timeout: 30000,
+      timeout: 90000,
     })
+    if (res.data.code !== 0) {
+      throw new Error(res.data.msg || '上传失败')
+    }
 
-    const proxyUrl = window.location.origin + '/img-api/' + extractImagePath(assets.path)
+    const { url, thumbnailUrl, assets, thumbnailAssets } = res.data.data
+
+    const proxyUrl = url
     const originUrl = 'https://cnb.cool' + assets.path
 
     uploadedUrl.value = proxyUrl
@@ -483,32 +481,9 @@ async function uploadFile(): Promise<void> {
     let thumbProxyUrl: string | undefined
     let thumbOriginUrl: string | undefined
 
-    if (thumbnailFile.value) {
-      uploadProgress.value = 0
-
-      const thumbSignRes = await axios.get<SignResponse>('/api/upload/sign', {
-        params: {
-          name: thumbnailFile.value.name,
-          size: thumbnailFile.value.size,
-        },
-      })
-      if (thumbSignRes.data.code !== 0) {
-        throw new Error(thumbSignRes.data.msg || '获取缩略图上传签名失败')
-      }
-
-      await axios.put(thumbSignRes.data.data.upload_url, thumbnailFile.value, {
-        headers: { 'Content-Type': 'application/octet-stream' },
-        onUploadProgress: (e: AxiosProgressEvent) => {
-          if (e.total) {
-            uploadProgress.value = Math.round((e.loaded / e.total) * 100)
-          }
-        },
-        timeout: 30000,
-      })
-
-      thumbProxyUrl =
-        window.location.origin + '/img-api/' + extractImagePath(thumbSignRes.data.data.assets.path)
-      thumbOriginUrl = 'https://cnb.cool' + thumbSignRes.data.data.assets.path
+    if (thumbnailFile.value && thumbnailAssets && thumbnailUrl) {
+      thumbProxyUrl = thumbnailUrl
+      thumbOriginUrl = 'https://cnb.cool' + thumbnailAssets.path
       uploadedThumbnailUrl.value = thumbProxyUrl
     }
 

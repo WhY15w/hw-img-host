@@ -1,35 +1,23 @@
 import { Router } from 'express'
 import multer from 'multer'
-import { uploadToCnb, signUpload, buildImageUrl, getErrorDetail } from '../_utils'
+import { uploadToCnb, buildImageUrl, getErrorDetail } from '../_utils'
 import { reply } from '../_reply'
 import { authMiddleware } from '../_auth'
 
 const router = Router()
 
+// EdgeOne Pages Node Functions 请求体上限为 6MB，单文件限制需留出 multipart 边界与缩略图的余量
+const MAX_FILE_SIZE = 5 * 1024 * 1024
+
 const upload = multer({
   limits: {
-    fileSize: 20 * 1024 * 1024,
-    fieldSize: 20 * 1024 * 1024,
+    fileSize: MAX_FILE_SIZE,
   },
-})
-
-router.get('/sign', authMiddleware, async (req, res) => {
-  try {
-    const fileName = req.query.name as string
-    const fileSize = parseInt(req.query.size as string, 10)
-    if (!fileName || !fileSize) {
-      return res.status(400).json(reply(1, '缺少 name 或 size 参数'))
-    }
-
-    const result = await signUpload({ fileName, fileSize })
-    res.json(reply(0, 'ok', result))
-  } catch (e: unknown) {
-    res.status(500).json(reply(1, '获取上传签名失败', { message: (e as Error).message }))
-  }
 })
 
 router.post(
   '/img',
+  authMiddleware,
   (req, res, next) => {
     upload.fields([
       { name: 'file', maxCount: 1 },
@@ -37,7 +25,9 @@ router.post(
     ])(req, res, (err) => {
       if (err) {
         const status = err.code === 'LIMIT_FILE_SIZE' || err.code === 'LIMIT_FIELD_SIZE' ? 413 : 400
-        return res.status(status).json(reply(1, `文件超出限制: ${err.message}`))
+        const hint =
+          err.code === 'LIMIT_FILE_SIZE' ? `（单文件最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）` : ''
+        return res.status(status).json(reply(1, `文件超出限制${hint}: ${err.message}`))
       }
       next()
     })

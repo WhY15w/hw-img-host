@@ -90,7 +90,7 @@ pnpm dev
 | 变量              | 说明                                                          | 示例                       |
 | ----------------- | ------------------------------------------------------------- | -------------------------- |
 | `BASE_IMG_URL`    | 图床域名，**结尾必须带斜杠**                                  | `https://img.example.com/` |
-| `SLUG_IMG`        | CNB 图床仓库名                                                | `your-username/your-repo`  |
+| `SLUG_IMG`        | CNB 图床仓库名（该仓库需要公开，私有不行）                                               | `your-username/your-repo`  |
 | `TOKEN_IMG`       | CNB 个人访问令牌                                              | `xxxx`                     |
 | `UPLOAD_PASSWORD` | 上传密码（同时作为 JWT 密钥；未设置时登录和上传接口将不可用） | `your-secret-123`          |
 
